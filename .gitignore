@@ -1,0 +1,6 @@
+library_tracker
+library_tracker.exe
+chain.dat
+library_private.pem
+*.o
+*.obj
