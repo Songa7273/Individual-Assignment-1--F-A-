@@ -1,57 +1,111 @@
 # Library Lending Blockchain
 
-A C command-line application that records library borrowing and returning events in a tamper-evident blockchain. Books and members are loaded from registries before the CLI starts. Each transaction is SHA-256 hashed, linked to the preceding block, digitally signed with an ECDSA P-256 private key, and persisted to `chain.dat`.
+This project extends the library book lending tracker into a blockchain-based lending system with a pending pool, reward transactions, and mining simulation. The application loads book and member registries, records borrow/return events, assigns token rewards, and then confirms pending lending records through simulated mining before the chain is updated.
 
 ## Requirements
 
 - C11 compiler
-- OpenSSL 3.x development package (`libssl-dev` on Debian/Ubuntu, or the MSYS2 `mingw-w64-x86_64-openssl` package)
+- OpenSSL 3.x development package
+- MSYS2/UCRT64 environment on Windows if using the bundled Makefile
 
 ## Build and run
 
-Linux/macOS:
+From the project folder:
+
+```sh
+make CC=/ucrt64/bin/gcc
+env MSYSTEM=UCRT64 MSYSTEM_PREFIX=/ucrt64 PATH=/ucrt64/bin:/usr/bin:/bin ./library_tracker.exe
+```
+
+On Linux/macOS:
 
 ```sh
 make
 ./library_tracker
 ```
 
-Windows with MSYS2 UCRT64:
+The first run creates the ECDSA P-256 private key in `library_private.pem`, creates the genesis block, and writes the chain to `chain.dat`.
 
-```sh
-pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-openssl
-make CC=/ucrt64/bin/gcc
-env MSYSTEM=UCRT64 MSYSTEM_PREFIX=/ucrt64 PATH=/ucrt64/bin:/usr/bin:/bin ./library_tracker.exe
+## Switching transaction models
+
+The program supports both transaction ledger styles through the CLI:
+
+```text
+model utxo
+model account
 ```
 
-The Makefile supplies the UCRT64 environment automatically when `/ucrt64/bin/gcc` is used from an MSYS shell. The `env` prefix on the run command exposes the matching UCRT64 runtime DLLs as well.
+- `utxo`: balances are derived from unspent outputs and fee/change handling is simulated.
+- `account`: balances are stored directly per member and checked with nonce validation.
 
-The first run creates an ECDSA P-256 private key in `library_private.pem`, creates a genesis block, and saves the chain in `chain.dat`. Keep the key with the chain: signatures from a different key will not verify.
+## Changing mining difficulty
 
-## CLI demonstration
+Difficulty is configurable between 1 and 4 leading zero characters:
+
+```text
+set difficulty 1
+set difficulty 2
+set difficulty 4
+```
+
+The startup command-line option is also supported:
+
+```sh
+./library_tracker --difficulty 3 --model account
+```
+
+## Typical workflow
 
 ```text
 borrow BK001 ALU001
-borrow BK001 ALU002        # rejected: already on loan
-borrow BK999 ALU001        # rejected: invalid book
+borrow BK001 ALU002
 return BK001 ALU001
+pending
+mine solo
 view
+balances
 validate
-tamper
-exit
 ```
 
-`tamper` changes a past block in memory, shows validation failure, then reloads the last persisted chain so the demonstration does not permanently corrupt the file.
+Late returns can be marked with:
 
-## Persistence and validation
+```text
+return BK001 ALU001 late
+```
 
-`books.txt` and `members.txt` are mandatory comma-separated registries. Empty or missing files stop startup. `chain.dat` stores the binary block array. Every block hash covers its index, timestamp, registry snapshots, action, and previous hash. Validation recomputes each hash and checks every link. Signatures are verified when records are viewed.
+## Mining simulation commands
+
+```text
+mine solo
+mine pool
+mine cloud 3
+```
+
+- `mine solo`: mines all pending records with a proof-of-work loop.
+- `mine pool`: shows a reward distribution table with pool fee deduction.
+- `mine cloud N`: shows a multi-round cloud mining summary for `N` rounds.
+
+## Testing notes
+
+Checks include:
+
+- duplicate active loan rejection
+- invalid member/book IDs
+- impossible late return without active loan
+- insufficient balance or invalid nonce in account mode
+- chain tampering detection via `tamper`
+- profitability warning for cloud mining when fees exceed rewards
+
+## Files
+
+- Source: [library_tracker.c](library_tracker.c)
+- Design notes: [DESIGN.md](DESIGN.md)
+- Technical report: [REPORT.md](REPORT.md)
+- Registry: [books.txt](books.txt), [members.txt](members.txt)
 
 ## Submission checklist
 
-- Source: `library_tracker.c`
-- Registry inputs: `books.txt`, `members.txt`
-- Build instructions: this README
-- System design: [DESIGN.md](DESIGN.md)
-- Report outline: [REPORT.md](REPORT.md)
-- Demo: record startup, valid and invalid commands, `view`, `validate`, and `tamper`
+- Source code is complete and compiles with the Makefile.
+- Pending pool and mining flow are implemented.
+- UTXO and account-based models are available.
+- Documentation and testing notes are included in this README and report files.
